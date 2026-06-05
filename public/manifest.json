@@ -1,0 +1,22 @@
+{
+  "name": "TasaVzla - BCV & Binance P2P",
+  "short_name": "TasaVzla",
+  "description": "Calculadora y consulta en tiempo real de las tasas BCV y Binance P2P en Venezuela.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#020617",
+  "theme_color": "#020617",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "type": "image/png",
+      "sizes": "192x192"
+    },
+    {
+      "src": "/icon-512.png",
+      "type": "image/png",
+      "sizes": "512x512"
+    }
+  ]
+}

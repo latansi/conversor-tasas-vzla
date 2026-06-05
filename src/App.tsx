@@ -300,11 +300,12 @@ function ConverterCard({ rates }: { rates: RateData }) {
   const rate = getRate();
   
   const calculateResult = () => {
-    if (mode === 'usd_to_ves' || mode === 'usdt_to_ves') {
-      return (numericAmount * rate).toFixed(2);
-    } else {
-      return (numericAmount / rate).toFixed(2);
-    }
+    const resVal = (mode === 'usd_to_ves' || mode === 'usdt_to_ves') 
+      ? (numericAmount * rate) 
+      : (numericAmount / rate);
+    
+    if (isNaN(resVal)) return '0.00';
+    return resVal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   };
 
   const swapMode = () => {
@@ -362,6 +363,7 @@ function ConverterCard({ rates }: { rates: RateData }) {
               type="number"
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
+              onFocus={(e) => e.target.select()}
               className="w-full bg-slate-950 border border-slate-850 pl-10 pr-4 py-3 rounded-2xl text-sm font-semibold text-slate-100 placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-yellow-500/50"
               placeholder="0.00"
             />
