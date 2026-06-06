@@ -40,8 +40,8 @@ async function updateRatesCache() {
         fiat: "VES",
         tradeType: "BUY",
         page: 1,
-        rows: 5,
-        payTypes: []
+        rows: 10,
+        payTypes: ["PagoMovil", "Banesco", "BancoDeVenezuela", "Mercantil"]
       })
     }).then(r => {
       if (!r.ok) throw new Error("Binance Buy HTTP error");
@@ -57,8 +57,8 @@ async function updateRatesCache() {
         fiat: "VES",
         tradeType: "SELL",
         page: 1,
-        rows: 5,
-        payTypes: []
+        rows: 10,
+        payTypes: ["PagoMovil", "Banesco", "BancoDeVenezuela", "Mercantil"]
       })
     }).then(r => {
       if (!r.ok) throw new Error("Binance Sell HTTP error");
@@ -79,8 +79,12 @@ async function updateRatesCache() {
     const buyPrices = binanceBuyData?.data?.map((x: any) => parseFloat(x.adv.price)) || [];
     const sellPrices = binanceSellData?.data?.map((x: any) => parseFloat(x.adv.price)) || [];
 
-    const bestBuy = buyPrices[0] || cache.binance.buy;
-    const bestSell = sellPrices[0] || cache.binance.sell;
+    // Sort to get best prices for the user (BUY = highest price first, SELL = lowest price first)
+    const sortedBuyPrices = buyPrices.sort((a, b) => b - a);
+    const sortedSellPrices = sellPrices.sort((a, b) => a - b);
+
+    const bestBuy = sortedBuyPrices[0] || cache.binance.buy;
+    const bestSell = sortedSellPrices[0] || cache.binance.sell;
 
     // Average of top 3 for stability
     const getAvg = (arr: number[], fallback: number) => {
@@ -89,8 +93,8 @@ async function updateRatesCache() {
       return sum / Math.min(arr.length, 3);
     };
 
-    const avgBuy = getAvg(buyPrices, bestBuy);
-    const avgSell = getAvg(sellPrices, bestSell);
+    const avgBuy = getAvg(sortedBuyPrices, bestBuy);
+    const avgSell = getAvg(sortedSellPrices, bestSell);
     const binanceAvg = (avgBuy + avgSell) / 2;
 
     cache = {
