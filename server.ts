@@ -1,5 +1,6 @@
 import express from "express";
 import path from "path";
+import https from "https";
 import { createServer as createViteServer } from "vite";
 
 interface CachedRates {
@@ -19,17 +20,84 @@ let lastHistoryFetchTime = 0;
 const RATES_TTL = 2 * 60 * 1000; // 2 minutes
 const HISTORY_TTL = 60 * 60 * 1000; // 1 hour
 
+function scrapeBcvOfficial(): Promise<number | null> {
+  return new Promise((resolve) => {
+    const options = {
+      hostname: "www.bcv.org.ve",
+      port: 443,
+      path: "/",
+      method: "GET",
+      headers: {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
+      },
+      agent: new https.Agent({ rejectUnauthorized: false }), // Bypass SSL validation issues on BCV gov server
+      timeout: 6000 // 6 seconds timeout
+    };
+
+    const req = https.request(options, (res) => {
+      if (res.statusCode !== 200) {
+        resolve(null);
+        return;
+      }
+
+      let data = "";
+      res.on("data", (chunk) => {
+        data += chunk;
+      });
+
+      res.on("end", () => {
+        const match = data.match(/id=["']dolar["'][^]*?<strong>([^]*?)<\/strong>/i);
+        if (match && match[1]) {
+          const priceStr = match[1].replace(/\s+/g, "").replace(/,/g, ".");
+          const price = parseFloat(priceStr);
+          if (!isNaN(price) && price > 0) {
+            resolve(price);
+            return;
+          }
+        }
+        resolve(null);
+      });
+    });
+
+    req.on("error", (e) => {
+      console.error("Direct BCV scrape request error:", e.message);
+      resolve(null);
+    });
+
+    req.on("timeout", () => {
+      req.destroy();
+      console.error("Direct BCV scrape timeout");
+      resolve(null);
+    });
+
+    req.end();
+  });
+}
+
 async function updateRatesCache() {
   const now = Date.now();
   if (now - lastRatesFetchTime < RATES_TTL && cache.bcv.price > 0) {
     return;
   }
   try {
-    // 1. Fetch BCV
-    const bcvPromise = fetch("https://ve.dolarapi.com/v1/dolares/oficial").then(r => {
-      if (!r.ok) throw new Error("BCV HTTP error");
+    // 1. Fetch BCV (Try direct scrape first, fallback to DolarApi)
+    const bcvPromise = (async () => {
+      try {
+        const officialPrice = await scrapeBcvOfficial();
+        if (officialPrice !== null) {
+          console.log(`Direct scrape succeeded, BCV: ${officialPrice}`);
+          return { promedio: officialPrice, fechaActualizacion: new Date().toISOString() };
+        }
+      } catch (e: any) {
+        console.error("Direct scrape exception:", e.message);
+      }
+      
+      // Fallback to DolarApi CDN
+      const r = await fetch("https://ve.dolarapi.com/v1/dolares/oficial");
+      if (!r.ok) throw new Error("BCV DolarApi HTTP error");
       return r.json();
-    });
+    })();
 
     // 2. Fetch Binance Compra (Advertisers BUY USDT, i.e., user sells)
     const binanceBuyPromise = fetch("https://p2p.binance.com/bapi/c2c/v2/friendly/c2c/adv/search", {
